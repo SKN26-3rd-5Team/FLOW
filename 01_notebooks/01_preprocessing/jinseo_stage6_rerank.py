@@ -4,10 +4,10 @@
 실제 메타데이터 키 (minha_retriever.py 기준)
   - ingredient_ko : 성분명 한국어
   - ingredient_en : 성분명 영어
-  - chunk_type    : 청크 유형
-  - coos_score  : 정수  0=결측, 1=안전, 2=주의, 3=위험
-  - hw_ewg      : 정수  0=결측, 1~3=Good, 4~10=Others
-  - pc_rating   : 정수  0=결측, 1=훌륭함, 2=좋음, 3=보통, 4=나쁨, 5=매우나쁨
+  - chunk_type : 청크 유형
+  - coos_score : 정수  0=결측, 1=안전, 2=주의, 3=위험
+  - hw_ewg : 정수  0=결측, 1~3=Good, 4~10=Others
+  - pc_rating : 정수  0=결측, 1=훌륭함, 2=좋음, 3=보통, 4=나쁨, 5=매우나쁨
 
 최종점수 공식:
   rerank_score = search_score × chunk_weight × domain_weight
@@ -33,16 +33,13 @@ logger = logging.getLogger(__name__)
 # 1. 청크 유형 가중치
 # ──────────────────────────────────────────────
 
-CHUNK_WEIGHT_MAP: dict[str, float] = {
-    "summary": 1.5,
-    "definition": 1.4,
-    "qa_pair": 1.3,
-    "table": 1.2,
-    "paragraph": 1.0,
-    "list": 0.9,
-    "code": 0.8,
-    "metadata": 0.6,
-    "unknown": 1.0,
+# config.yaml weight_presets 기반 preset별 chunk_weight
+# ewg/basic_info/expert 비율이 preset마다 다름
+PRESET_CHUNK_WEIGHTS: dict[int, dict[str, float]] = {
+    1: {"ewg": 0.33, "basic_info": 0.33, "expert": 0.33},
+    2: {"ewg": 0.50, "basic_info": 0.35, "expert": 0.15},
+    3: {"ewg": 0.40, "basic_info": 0.45, "expert": 0.15},
+    4: {"ewg": 0.45, "basic_info": 0.45, "expert": 0.10},
 }
 
 
@@ -61,7 +58,7 @@ COOS_SCORE_MAP: dict[int, float] = {
 # 화해 EWG 정수값 → WoE
 # 0=결측, 1~3=Good, 4~10=Others
 WOE_HWAHAE: dict[str, float] = {
-    "Good":   0.3715,
+    "Good": 0.3715,
     "Others": -2.5706,
 }
 
@@ -260,7 +257,11 @@ def rerank(
             }
         }
     """
-    c_map  = {**CHUNK_WEIGHT_MAP, **(custom_chunk_weights or {})}
+    c_map = custom_chunk_weights or {
+        "ewg": 0.33,
+        "basic_info": 0.33,
+        "expert": 0.33,
+    }
     ranked: list[RankedChunk] = []
 
     for idx, result in enumerate(search_results):
@@ -271,7 +272,7 @@ def rerank(
 
             # chunk_weight
             chunk_type = (metadata.get("chunk_type") or "unknown").lower()
-            cw = c_map.get(chunk_type, c_map["unknown"])
+            cw = c_map.get(chunk_type, 0.33)
 
             # domain_weight  ← 실제 메타데이터 키명 사용
             coos_score = metadata.get("coos_score")   # 'coos_score' 키

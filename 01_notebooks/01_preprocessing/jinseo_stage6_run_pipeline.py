@@ -1,6 +1,4 @@
 """
-run_pipeline.py
-===============
 5단계 + 6단계 통합 실행 스크립트
 
 실행 예시:
@@ -11,10 +9,10 @@ run_pipeline.py
     python run_pipeline.py --all_presets
 
     # 특정 preset만 실행
-    python run_pipeline.py --preset 2
+    python jinseo_stage6_run_pipeline.py --preset 2
 
     # 옵션 조합
-    python run_pipeline.py --all_presets --query "레티놀 부작용 알려줘" --method rrf --verbose --save
+    python jinseo_stage6_run_pipeline.py --all_presets --query "레티놀 부작용 알려줘" --method rrf --verbose --save
 """
 
 from __future__ import annotations
@@ -31,6 +29,7 @@ load_dotenv()
 from openai import OpenAI
 from minha_retriever import CosmeticRetriever, load_faiss_auto, SearchResponse
 from jinseo_stage6_pipeline import convert_to_stage6_input, run_stage6, Stage6Config
+from jinseo_stage6_rerank import PRESET_CHUNK_WEIGHTS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -83,15 +82,6 @@ def run_preset(
         "rrf":   retriever.search_rrf,
         "hyde":  retriever.search_hyde,
     }
-    stage5_response: SearchResponse = fn_map[method](query)
-
-    # ← 여기에 추가
-    for r in stage5_response.results:
-        meta = r.document.metadata
-        print(
-            f"coos_score={meta.get('coos_score')!r}  "
-            f"hw_ewg={meta.get('hw_ewg')!r}  "
-            f"pc_rating={meta.get('pc_rating')!r}")
 
     logger.info("[Preset %d] %s 검색 시작: %s", preset_num, method.upper(), query)
     stage5_response: SearchResponse = fn_map[method](query)
@@ -201,12 +191,16 @@ def main():
     args = parser.parse_args()
 
     client = OpenAI()
-    config = Stage6Config(
-        rerank_top_k=args.top_k,
-        final_top_k=3,
-        compression_model="gpt-4o-mini",
-        final_model="gpt-4o",
-    )
+    config_map = {
+        p: Stage6Config(
+            rerank_top_k=args.top_k,
+            final_top_k=3,
+            compression_model="gpt-4o-mini",
+            final_model="gpt-4o",
+            custom_chunk_weights=PRESET_CHUNK_WEIGHTS.get(p),
+        )
+        for p in [1, 2, 3, 4]
+    }
 
     presets = [1, 2, 3, 4] if args.all_presets else [args.preset]
 
@@ -220,7 +214,7 @@ def main():
             method=args.method,
             top_k=args.top_k,
             client=client,
-            config=config,
+            config=config_map[preset_num],
             verbose=args.verbose,
             save=args.save,
         )
