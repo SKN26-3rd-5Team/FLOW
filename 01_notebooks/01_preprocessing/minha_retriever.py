@@ -443,7 +443,7 @@ if __name__ == "__main__":
     targets = ["bm25", "dense", "rrf", "hyde"] if args.method == "all" else [args.method]
 
     for preset_num in range(1, 5):  # preset 1 ~ 4 반복
-        faiss_path = f"../../00_data/02_processed/faiss_index_preset{preset_num}_v2"
+        faiss_path = f"../../00_data/02_processed/faiss_index_preset{preset_num}"
 
         print("\n" + "=" * 80)
         print(f"  📦 PRESET {preset_num}  |  {faiss_path}")
